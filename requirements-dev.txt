@@ -1,0 +1,3 @@
+-r requirements.txt
+pytest>=8
+httpx2  # test client for FastAPI (Starlette deprecates plain httpx)

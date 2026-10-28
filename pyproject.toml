@@ -1,0 +1,6 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = ["live: calls the real Groq API (needs GROQ_API_KEY)"]
+addopts = "-m \"not live\""
+filterwarnings = ["ignore:.*_UnionGenericAlias.* is deprecated:DeprecationWarning"]  # inside google-genai on Python 3.14

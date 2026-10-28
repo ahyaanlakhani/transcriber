@@ -1,0 +1,9 @@
+.env
+data/
+demo-data/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.claude/launch.json
+exports/
