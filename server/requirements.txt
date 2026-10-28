@@ -1,0 +1,7 @@
+# Install PyTorch first (see README.md), then:  pip install -r requirements.txt
+faster-whisper>=1.2
+pyannote.audio>=4.0
+fastapi>=0.120
+uvicorn>=0.30
+python-multipart>=0.0.20
+python-dotenv>=1.0
