@@ -1,6 +1,6 @@
-"""Gemini 3.5 Transcribe: one model that follows English/Urdu switching within a sentence.
+"""Gemini 3.5 Transcribe: one model that follows switching between languages within a sentence.
 
-Used for recordings set to "English + Urdu (mixed)". Word timestamps come back as annotations; they're grouped into
+Used for recordings set to "English + your other language (mixed)". Word timestamps come back as annotations; they're grouped into
 segments here, so the rest of the app sees the same Segment objects as from Groq.
 """
 from pathlib import Path
@@ -10,7 +10,7 @@ from .base import PermanentError, RateLimited, Segment, TransientError, why
 MODEL = "gemini-3.5-transcribe"
 GAP_SEC = 0.8  # a pause this long starts a new segment
 MAX_SEGMENT_SEC = 25.0
-SENTENCE_END = (".", "?", "!", "؟", "۔")
+SENTENCE_END = (".", "?", "!", "\u061f", "\u06d4", "\u0964", "\u3002")  # plus the question mark and full stops of other scripts
 
 
 class GeminiTranscriber:
@@ -31,7 +31,7 @@ class GeminiTranscriber:
                 model=MODEL,
                 input=[{"type": "audio", "uri": uploaded.uri, "mime_type": uploaded.mime_type or "audio/flac"}],
                 generation_config={"transcription_config": {
-                    "language_codes": [],  # detect each part of the audio: English, Urdu, or both
+                    "language_codes": [],  # detect each part of the audio: English, the other language, or both
                     "mode": {"type": "verbatim", "timestamp_granularities": ["word"]}}},
             )
         except Exception as exc:

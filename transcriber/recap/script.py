@@ -25,7 +25,7 @@ points (what to keep, what to work on, the follow-ups they could have asked), th
 - Close with one takeaway sentence.
 - Write for the ear: no lists, headings, bullets, symbols, timestamps or URLs. Short paragraphs separated by \
 blank lines. Say numbers, dates and abbreviations the way a person would ("the twenty-first", "A I").
-- English only. If the notes contain Roman Urdu, give the meaning in English.
+- English only. If the notes contain another language in Roman letters, give the meaning in English.
 - If the user gives instructions (what to call them, what to focus on), follow them within these rules."""
 RECAP_SCHEMA = {"type": "object", "properties": {"script": {"type": "string"}}, "required": ["script"],
                 "additionalProperties": False}

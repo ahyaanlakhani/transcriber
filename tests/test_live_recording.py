@@ -179,13 +179,13 @@ def test_discard_removes_everything(env):
 
 def test_recovers_sessions_left_by_a_crash(env):
     manager = make(env, FakeTranscriber())
-    sid = manager.create(title="Interrupted lecture", subject_id=None, language="ur")
+    sid = manager.create(title="Interrupted lecture", subject_id=None, language="es")
     run_live(manager, sid, webm_bytes(env.tmp, [("tone", 3.0)]))
     manager.abandon_for_test(sid)  # the process "dies": decoder gone, nothing finished
 
     created = make(env, FakeTranscriber()).recover()
     [rec] = [env.store.get_recording(rid) for rid in created]
-    assert (rec.title, rec.language, rec.status) == ("Interrupted lecture", "ur", "queued")
+    assert (rec.title, rec.language, rec.status) == ("Interrupted lecture", "es", "queued")
     assert (env.tmp / "recordings" / rec.id / "audio.flac").exists()
     assert not (env.tmp / "live" / sid).exists()
 

@@ -40,7 +40,7 @@ def write_notes(llm: LLMClient, *, title: str, paragraphs: list[Paragraph], long
             return ask(system, user, schema, effort="low")
 
     def write_part(part: list[Paragraph], position: tuple[int, int] | None) -> list[dict]:
-        """Parts are sized in characters, which assumes English. Roman Urdu takes about twice the tokens for the same
+        """Parts are sized in characters, which assumes English. Text in Roman letters for a non-English language takes about twice the tokens for the same
         characters, so a model with a small request limit (Groq answers HTTP 413) can refuse a part. Only that part is
         split in two and written again; the parts already written are kept, so nothing is paid for twice."""
         try:

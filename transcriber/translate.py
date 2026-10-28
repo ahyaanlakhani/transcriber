@@ -2,7 +2,7 @@
 
 The notes writer does the work. Paragraphs go in batches; a batch whose reply doesn't match line for line is split and
 asked again, down to single paragraphs. A paragraph that still can't be translated keeps its original words, so
-nothing is dropped. Roman Urdu uses about twice the tokens of English for the same characters, so batches are small.
+nothing is dropped. Another language in Roman letters uses about twice the tokens of English for the same characters, so batches are small.
 """
 import json
 import time
@@ -17,8 +17,8 @@ BATCH_CHARS = 4_000
 TOO_LARGE = ("HTTP 413", "HTTP 400")
 
 SYSTEM = """You translate lecture and conversation transcripts into plain, natural English.
-The input is spoken language, often Urdu written in Roman letters (for example "ye bandha kis ke liye tha") or in
-Urdu or Hindi script, mixed with English. Rules:
+The input is spoken language: often a language other than English, written in Roman letters or in its own script,
+mixed with English. Rules:
 - Translate the meaning faithfully. Do not summarise, explain, correct, censor or add anything.
 - Keep English words and sentences as they are. Keep names, numbers and technical terms.
 - Keep each paragraph as one paragraph; the speaker's sentences stay in order.

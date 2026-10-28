@@ -1,16 +1,35 @@
 "use strict";
 
-const LANGUAGE_NAMES = { en: "English", ur: "Urdu", auto: "Auto-detect", mixed: "English + Urdu (mixed)" };
-const MIXED_NOTE = "Gemini 3.5 Transcribe, from Google: follows English and Urdu switching within a sentence. "
-  + "Urdu is written in Roman Urdu. On Gemini's free tier, Google may use the audio to improve its products.";
-// "English + Urdu (mixed)" needs a Gemini key in .env: greyed out, with the reason, until there is one.
+// The languages in the menus come from the app (/api/status): English, Auto-detect, a mixed option, and any languages
+// added in .env (EXTRA_LANGUAGES, SECOND_LANGUAGE). This is only the fallback until it answers.
+const LANGUAGE_NAMES = { en: "English", auto: "Auto-detect", mixed: "English + your other language (mixed)" };
+const mixedNote = () => "Gemini 3.5 Transcribe, from Google: follows switching between English and "
+  + `${state.status?.second_language || "your other language"} within a sentence. The other language is written in Roman letters. `
+  + "On Gemini's free tier, Google may use the audio to improve its products.";
+
+// Menu order: English, your extra languages, Auto-detect, then the mixed option.
+const languageCodes = () => ["en", ...Object.keys(LANGUAGE_NAMES).filter((code) => !["en", "auto", "mixed"].includes(code)), "auto", "mixed"];
+
+// Fill the language menus from the app's list: English, your extra languages, Auto-detect, then the mixed option.
+function applyLanguages() {
+  for (const { code, name } of state.status?.languages || []) LANGUAGE_NAMES[code] = name;
+  const order = languageCodes();
+  for (const select of [$("#upload-language"), $("#default-language")]) {
+    if (!select) continue;
+    const current = select.value;
+    select.replaceChildren(...order.map((code) => el("option", { value: code }, LANGUAGE_NAMES[code])));
+    select.value = order.includes(current) ? current : "en";
+  }
+}
+
+// "English + your other language (mixed)" needs a Gemini key in .env: greyed out, with the reason, until there is one.
 function markMixed(select, note) {
   const option = select?.querySelector('option[value="mixed"]');
   if (!option) return;
   const ready = Boolean(state.status?.mixed);
   option.disabled = !ready;
   option.textContent = ready ? LANGUAGE_NAMES.mixed : `${LANGUAGE_NAMES.mixed} (add GEMINI_API_KEY to .env)`;
-  if (note) { note.textContent = select.value === "mixed" ? MIXED_NOTE : ""; note.hidden = select.value !== "mixed"; }
+  if (note) { note.textContent = select.value === "mixed" ? mixedNote() : ""; note.hidden = select.value !== "mixed"; }
 }
 const SECTIONS = [["summary", "Summary"], ["lecture", "Lecture notes"], ["about_them", "About them"],
   ["intro", "Your intro"], ["my_questions", "Your questions"], ["missed_followups", "Missed follow-ups"],
@@ -767,8 +786,8 @@ function renderTabActions(rec) {
   }
   if (rec.status === "done" || rec.status === "failed") {
     const select = el("select", { "aria-label": "Language for re-transcription" },
-      Object.entries(LANGUAGE_NAMES).map(([code, name]) => el("option", { value: code, selected: code === rec.language,
-        disabled: code === "mixed" && !state.status?.mixed }, name)));
+      languageCodes().map((code) => el("option", { value: code, selected: code === rec.language,
+        disabled: code === "mixed" && !state.status?.mixed }, LANGUAGE_NAMES[code])));
     const speakers = el("input", { type: "checkbox", checked: rec.want_speakers && speakersPossible(),
       disabled: !speakersPossible() });
     panel.append(el("div", { class: "menu-row" }, select,
@@ -2169,6 +2188,7 @@ async function init() {
   wireEvents();
   renderDetail();
   state.status = await api("/api/status");
+  applyLanguages();
   $("#key-banner").hidden = state.status.api_key_configured;
   state.settings = await api("/api/settings");
   await loadNav();

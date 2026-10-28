@@ -35,7 +35,8 @@ Delete that file to stop starting at login.
 - **Add recordings:** drag files onto the page, or click *Add recordings*. Phone voice memos (.m4a),
   Zoom/Teams/Meet recordings (.mp4), .mp3, .wav and other common formats all work.
 - Give each one a title, an optional **subject** (e.g. "Standup", "Client X") and a language — **English** by
-  default, or Urdu / Auto-detect for the occasional mixed meeting.
+  default, or Auto-detect, or **English + your other language** for a mixed lecture. Other languages are added in `.env`
+  (see *Your own language* below).
 - Progress shows live in the library. When a transcript is ready, click any **timestamp** to hear that moment —
   the quickest way to check a word.
 - **Copy transcript**, **Download .txt** (clean text) or **Download .md** (AI notes + timestamped transcript).
@@ -104,6 +105,24 @@ Recordings transcribed before you added the keys get notes automatically on the 
 Privacy: Google uses free-tier Gemini requests to improve its products, so meeting transcripts sent to the
 checker are used that way. Set `NOTES_CHECKER=none` in `.env` to turn the checker off. To switch the writer
 later (e.g. to ChatGPT), set `NOTES_WRITER=openai:<model>` and `OPENAI_API_KEY=…`.
+
+## Your own language
+
+Transcriber starts with **English**, **Auto-detect** and **English + your other language (mixed)**. Add any language
+Whisper supports in `.env`:
+
+```
+EXTRA_LANGUAGES=es:Spanish,fr:French
+SECOND_LANGUAGE=Spanish
+```
+
+- `EXTRA_LANGUAGES` is a comma-separated list of `code:Name` pairs. The code is the two- or three-letter one Whisper
+  uses (`es`, `fr`, `de`, `hi`, `ar`, `pt`, `ur` and so on). Each language then appears in the language menus when you
+  add or re-transcribe a recording, and in Settings as the default.
+- `SECOND_LANGUAGE` names the other language of a **mixed** lecture, for example one that moves between English and
+  Spanish within a sentence. Gemini transcribes those, and the notes AI then writes the other language in Roman letters
+  next to the English so the transcript reads as one piece. Notes are always written in English.
+- Restart the app after changing `.env`.
 
 ## Getting the best accuracy
 

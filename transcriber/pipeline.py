@@ -67,7 +67,7 @@ class Pipeline:
         self.max_upload_bytes = max_upload_bytes
         self.remote = remote
         self.merge_judge = merge_judge
-        self.mixed_transcriber = mixed_transcriber  # Gemini, for "English + Urdu (mixed)" recordings
+        self.mixed_transcriber = mixed_transcriber  # Gemini, for "English + your other language (mixed)" recordings
         self.romanizer = romanizer
         self.local_transcriber = local_transcriber  # runs on this laptop: the only engine allowed for Local-only recordings
         self._engine = transcriber  # the engine for the chunks being transcribed right now
@@ -122,7 +122,7 @@ class Pipeline:
         mixed = rec.language == MIXED
         note = None
         local_only = self.store.effective_privacy([rid]).get(rid, ("standard", True))[0] == "local_only"
-        if self._wants_server(rec) and not mixed and not local_only:  # the user's server is Whisper: not for mixed English/Urdu
+        if self._wants_server(rec) and not mixed and not local_only:  # the user's server is Whisper: not for mixed-language recordings
             health = self.remote.health()
             if health:
                 segments = self._server_segments(rec, audio_path, work, language, build_prompt(vocabulary, ""),
@@ -158,7 +158,7 @@ class Pipeline:
         finally:
             self._engine = self.transcriber
         if mixed and self.romanizer is not None:
-            self._update(rid, status_detail="Writing Urdu in Roman Urdu…")
+            self._update(rid, status_detail=f"Writing {self.romanizer.language} in Roman letters…")
             segments = self.romanizer(segments)
         self._save(rid, segments, engine.name, work)
 

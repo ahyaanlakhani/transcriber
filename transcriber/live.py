@@ -312,7 +312,7 @@ class LiveManager:
         """The complete live transcript, after at most one quick try at the last few seconds; None when the
         recording should go to the normal pipeline instead."""
         if self.transcriber is None or session.fallback or session.meta.get("language") == MIXED:
-            return None  # mixed English/Urdu gets its final transcript from Gemini, in the normal pipeline
+            return None  # mixed-language lectures get their final transcript from Gemini, in the normal pipeline
         with session.lock:
             behind = len(session.rms) - session.cursor
             troubled = session.notice is not None

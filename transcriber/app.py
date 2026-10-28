@@ -43,7 +43,7 @@ from .naming import is_standard_name, suggest_bulk_names, suggest_class_names, s
 from .sessions import class_sessions, unique_sessions
 from .usage import bucket
 from .combine import combine_recordings, is_combined
-from .config import LANGUAGES, Config, load_config
+from .config import LANGUAGE_NAMES, LANGUAGES, Config, load_config, register_languages
 from .export import to_md, to_txt
 from .live import LiveManager
 from .meeting import MeetingError, MeetingManager, WasapiDevices
@@ -310,6 +310,7 @@ def create_app(config: Config | None = None, transcriber: Transcriber | None = N
                voice=FROM_CONFIG, practice_llm=FROM_CONFIG, meeting_devices=None, start_worker: bool = True,
                privacy_allow_all: bool = False, meeting_clock=None, local_transcriber=FROM_CONFIG) -> FastAPI:
     config = config or load_config()
+    register_languages(config.extra_languages, config.second_language)
     if transcriber is None and config.groq_api_key:
         from .providers.groq import GroqTranscriber
 
@@ -343,7 +344,7 @@ def create_app(config: Config | None = None, transcriber: Transcriber | None = N
     gemini_key = config.api_keys.get("gemini")
     mixed_transcriber = gateway.guard_transcriber(GeminiTranscriber(gemini_key) if gemini_key else None)
     local_transcriber = gateway.guard_transcriber(local_transcriber)
-    romanizer = Romanizer(writer) if writer else None
+    romanizer = Romanizer(writer, language=config.second_language) if writer else None
     pipeline = Pipeline(store, transcriber, recordings_dir, remote=remote,
                         merge_judge=llm_judge(writer) if writer else None,
                         mixed_transcriber=mixed_transcriber, romanizer=romanizer, local_transcriber=local_transcriber) \
@@ -484,7 +485,9 @@ def create_app(config: Config | None = None, transcriber: Transcriber | None = N
             "api_key_configured": transcriber is not None,
             "notes": {"writer": writer.name if writer else None, "checker": checker.name if checker else None},
             "ask": ask_engines[0].name if ask_engines else None,
-            "mixed": mixed_transcriber is not None,  # English + Urdu lectures need a Gemini key
+            "mixed": mixed_transcriber is not None,  # English plus another language in one lecture needs a Gemini key
+            "languages": [{"code": code, "name": name} for code, name in LANGUAGE_NAMES.items()],
+            "second_language": config.second_language,
         }
 
     # --- recordings

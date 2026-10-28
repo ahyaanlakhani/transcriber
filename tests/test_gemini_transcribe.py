@@ -1,11 +1,11 @@
-"""Gemini 3.5 Transcribe provider, Roman Urdu conversion, and mixed routing."""
+"""Gemini 3.5 Transcribe provider, conversion of a second language to Roman letters, and mixed routing."""
 from types import SimpleNamespace
 
 import pytest
 
 from transcriber.providers.base import PermanentError, RateLimited, Segment, TransientError
 from transcriber.providers.gemini_transcribe import GeminiTranscriber, group_words, map_error, segments_from
-from transcriber.romanize import Romanizer, has_urdu_script
+from transcriber.romanize import Romanizer, has_non_latin_script
 
 from .helpers import FakeLLM
 
@@ -91,46 +91,47 @@ def test_api_error_during_transcription_is_mapped(tmp_path):
             audio, language=None, prompt="")
 
 
-def test_urdu_script_detection():
-    assert has_urdu_script("ERP میں یہ chassis number") and not has_urdu_script("only English here")
+def test_non_latin_script_detection():
+    assert has_non_latin_script("ERP в этом chassis number") and not has_non_latin_script("only English here")
 
 
-def test_devanagari_counts_as_a_script_to_romanize():
-    assert has_urdu_script("जिन ने किया है।") and has_urdu_script("ERP में number")
+def test_any_non_latin_script_counts_and_accented_latin_does_not():
+    assert has_non_latin_script("Привет, world") and has_non_latin_script("你好") and has_non_latin_script("Καλημέρα")
+    assert not has_non_latin_script("café, señor, Ærø, ñandú") and not has_non_latin_script("numbers 123 and, punctuation!")
 
 
-def test_romanizer_converts_only_urdu_lines_in_order():
-    segments = [Segment(0, 1, "The car is ordered."), Segment(1, 2, "ERP میں یہ نمبر کس لیے تھا"),
+def test_romanizer_converts_only_non_latin_lines_in_order():
+    segments = [Segment(0, 1, "The car is ordered."), Segment(1, 2, "ERP этот номер зачем был"),
                 Segment(2, 3, "Okay.")]
-    llm = FakeLLM("groq:x", [{"lines": ["ERP mein ye number kis liye tha"]}])
+    llm = FakeLLM("groq:x", [{"lines": ["ERP etot nomer zachem byl"]}])
     out = Romanizer(llm, wait=lambda s: None)(segments)
-    assert [s.text for s in out] == ["The car is ordered.", "ERP mein ye number kis liye tha", "Okay."]
-    assert "ERP میں" in llm.calls[0]["user"]  # the model saw the Urdu script line
+    assert [s.text for s in out] == ["The car is ordered.", "ERP etot nomer zachem byl", "Okay."]
+    assert "ERP этот" in llm.calls[0]["user"]  # the model saw the line in the other script
 
 
 def test_romanizer_keeps_script_when_the_reply_does_not_match():
-    segments = [Segment(0, 1, "یہ ایک"), Segment(1, 2, "اور دوسری لائن")]
+    segments = [Segment(0, 1, "это один"), Segment(1, 2, "и вторая строка")]
     llm = FakeLLM("groq:x", [{"lines": ["only one line"]}])
-    assert [s.text for s in Romanizer(llm, wait=lambda s: None)(segments)] == ["یہ ایک", "اور دوسری لائن"]
+    assert [s.text for s in Romanizer(llm, wait=lambda s: None)(segments)] == ["это один", "и вторая строка"]
 
 
 def test_romanizer_splits_a_batch_the_model_cannot_answer_and_keeps_only_the_lines_that_still_fail():
-    segments = [Segment(i, i + 1, f"لائن {i}") for i in range(4)]
+    segments = [Segment(i, i + 1, f"строка {i}") for i in range(4)]
     llm = FakeLLM("groq:x", [PermanentError("Groq rejected the request (HTTP 400)"), {"lines": ["line 0", "line 1"]},
                              {"lines": ["only one"]}, {"lines": ["line 2"]}, PermanentError("HTTP 400")])
     out = Romanizer(llm, wait=lambda s: None)(segments)
-    assert [s.text for s in out] == ["line 0", "line 1", "line 2", "لائن 3"]
+    assert [s.text for s in out] == ["line 0", "line 1", "line 2", "строка 3"]
     assert all(call["effort"] == "low" for call in llm.calls)
 
 
 def test_romanizer_keeps_script_when_the_model_fails():
-    segments = [Segment(0, 1, "یہ ایک")]
+    segments = [Segment(0, 1, "это один")]
     llm = FakeLLM("groq:x", [TransientError("down")] * 5)
-    assert Romanizer(llm, wait=lambda s: None)(segments)[0].text == "یہ ایک"
+    assert Romanizer(llm, wait=lambda s: None)(segments)[0].text == "это один"
 
 
 def test_romanizer_batches_long_transcripts():
-    segments = [Segment(i, i + 1, f"لائن {i}") for i in range(45)]
+    segments = [Segment(i, i + 1, f"строка {i}") for i in range(45)]
     replies = [{"lines": [f"line {i}" for i in range(40)]}, {"lines": [f"line {i}" for i in range(40, 45)]}]
     llm = FakeLLM("groq:x", replies)
     out = Romanizer(llm, wait=lambda s: None)(segments)
@@ -153,19 +154,19 @@ class FakeGemini:
     def transcribe(self, path, *, language, prompt):
         self.calls.append(language)
         return [Segment(0.0, 2.0, "The car is ordered.", -0.1, 0.01, 1.0),
-                Segment(2.5, 4.5, "ERP میں یہ نمبر کس لیے تھا", -0.1, 0.01, 1.0)]
+                Segment(2.5, 4.5, "ERP этот номер зачем был", -0.1, 0.01, 1.0)]
 
 
 def test_mixed_recording_uses_gemini_and_romanizes(env):
     from transcriber.config import MIXED
     rid = add_recording(env, parts=ONE_CHUNK, language=MIXED)
     gemini, groq = FakeGemini(), FakeTranscriber()
-    romanizer = Romanizer(FakeLLM("groq:x", [{"lines": ["ERP mein ye number kis liye tha"]}]), wait=lambda s: None)
+    romanizer = Romanizer(FakeLLM("groq:x", [{"lines": ["ERP etot nomer zachem byl"]}]), wait=lambda s: None)
     make_pipeline(env, groq, mixed_transcriber=gemini, romanizer=romanizer).process(rid)
     transcript = env.store.get_transcript(rid)
     assert groq.calls == [] and gemini.calls == [None]  # auto-detect language for Gemini
     assert transcript.model == "gemini/gemini-3.5-transcribe"
-    assert [s.text for s in transcript.segments] == ["The car is ordered.", "ERP mein ye number kis liye tha"]
+    assert [s.text for s in transcript.segments] == ["The car is ordered.", "ERP etot nomer zachem byl"]
     assert env.store.get_recording(rid).status == "done"
 
 
@@ -206,7 +207,16 @@ def test_mixed_live_recording_goes_to_the_normal_pipeline(tmp_path):
 
 
 def test_romanizer_stops_asking_once_the_provider_refuses_everything():
-    segments = [Segment(i, i + 1, f"لائن {i}") for i in range(100)]
+    segments = [Segment(i, i + 1, f"строка {i}") for i in range(100)]
     llm = FakeLLM("groq:x", [PermanentError("Invalid Groq API key (check .env)")] * 300)
     out = Romanizer(llm, wait=lambda s: None)(segments)
     assert len(llm.calls) == 1 and out[0].text == segments[0].text  # one try, not hundreds, and nothing lost
+
+
+def test_the_romanizer_names_the_language_it_was_told_about():
+    llm = FakeLLM("groq:x", [{"lines": ["privet"]}])
+    Romanizer(llm, wait=lambda s: None, language="Russian")([Segment(0, 1, "привет")])
+    assert "Russian" in llm.calls[0]["system"]
+    llm = FakeLLM("groq:x", [{"lines": ["privet"]}])
+    Romanizer(llm, wait=lambda s: None)([Segment(0, 1, "привет")])
+    assert "other language" in llm.calls[0]["system"]  # no language set: the instruction stays general

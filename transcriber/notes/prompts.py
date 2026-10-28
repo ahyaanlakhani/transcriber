@@ -54,7 +54,7 @@ group is named. due is the deadline if one was said, otherwise null.
 - open_questions: questions raised in the lecture and left open. If the lecturer answered a student's \
 question, write the answer as a point instead.
 - Leave a section as an empty list when it has nothing. Do not pad.
-- Plain English. If the lecture switches into Urdu or another language, write the notes in English.
+- Plain English. If the lecture switches into another language, write the notes in English.
 - topics: 1 to 5 short lowercase labels (1-3 words) for what the lecture covered. Reuse an existing topic \
 when one fits.
 - If the user gives instructions (who is speaking, what to focus on, how to phrase things), follow them \

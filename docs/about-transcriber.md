@@ -31,7 +31,7 @@ to the audio.
 ### Transcripts
 
 - Powered by Whisper large-v3 through Groq's free tier, about 8 hours of audio per day at no cost.
-- Handles **English, Urdu, automatic language detection and mixed English–Urdu** lectures (mixed needs a free
+- Handles **English, any language you add, automatic language detection and mixed English-plus-your-language** lectures (mixed needs a free
   Gemini key).
 - Cuts audio at natural pauses, uses your vocabulary list for names and jargon, filters the phantom lines speech
   models invent in silence, and picks up where it left off after rate limits or network trouble.
@@ -117,7 +117,7 @@ to the audio.
 | Speaker identification | Often voice-based | From the words, or from which audio source was loud. No voiceprints or voice training |
 | Your classes | Not aware of them | Timetable-aware: missing classes, combined parts, reminders |
 | Doing things for you | Fixed buttons | An assistant that skips classes, sets reminders and tidies the library, with Undo |
-| Languages | Mostly English | English, Urdu and mixed English–Urdu |
+| Languages | Mostly English | English, any language you add, and mixed English-plus-your-language |
 
 ## How it works
 
@@ -139,7 +139,7 @@ model and, if you set one up, fact-checked by a second model (Gemini by default)
   the app before using Groq for Private recordings. It is a policy, not a guarantee, so read it yourself.
 - **Ask** uses the Groq notes writer. Claude through your own account is available but off by default, and can never be used
   for Private recordings because its conversations are not zero-retention.
-- **Gemini is optional** (fact-checking and mixed Urdu–English lectures) and is not set up by default. Google's
+- **Gemini is optional** (fact-checking and mixed-language lectures) and is not set up by default. Google's
   free tier may use submitted content to improve its products, and humans may review it, so don't use a free
   Gemini key for private recordings such as coffee chats.
 - The app never trains on, stores voiceprints of, or imitates anyone's voice.
@@ -153,7 +153,7 @@ model and, if you set one up, fact-checked by a second model (Gemini by default)
   up.
 - Meeting capture works on **Windows**. It records everything playing through your speakers, so close other
   sounds, and use headphones so the call doesn't echo into your microphone.
-- Urdu and mixed-language accuracy is lower than English. Speaker labels on uploads need your own GPU server.
+- Accuracy in other languages, and in mixed-language lectures, is lower than in English. Speaker labels on uploads need your own GPU server.
 - **Local only** recordings can be transcribed on the laptop with an optional local model, which is slow without a graphics
   card, and they get no AI notes.
 - The spaced-repetition schedule follows the FSRS-5 model from memory of its reference, tested for sensible behaviour but

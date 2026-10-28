@@ -9,10 +9,33 @@ from dotenv import dotenv_values
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 # Language stored on a recording -> language code sent to the provider (None = auto-detect).
-# "mixed": English + Urdu in one lecture, transcribed by Gemini 3.5 Transcribe (Groq auto-detect if no Gemini key).
+# "mixed": English plus your other language in one lecture, transcribed by Gemini 3.5 Transcribe (Groq auto-detect if no
+# Gemini key). More languages are added from .env (EXTRA_LANGUAGES), so nothing here is tied to one language.
 MIXED = "mixed"
-LANGUAGES: dict[str, str | None] = {"en": "en", "ur": "ur", "auto": None, MIXED: None}
+LANGUAGES: dict[str, str | None] = {"en": "en", "auto": None, MIXED: None}
+LANGUAGE_NAMES: dict[str, str] = {"en": "English", "auto": "Auto-detect", MIXED: "English + your other language (mixed)"}
 DEFAULT_LANGUAGE = "en"
+RESERVED_LANGUAGE_CODES = {"en", "auto", MIXED}
+
+
+def parse_languages(raw: str) -> dict[str, str]:
+    """"es:Spanish, fr:French" -> {"es": "Spanish", "fr": "French"}. A code is the one Whisper uses (two or three
+    letters, like es, fr, hi, ar, ur); entries that don't look like code:Name are ignored."""
+    languages: dict[str, str] = {}
+    for part in raw.split(","):
+        code, sep, name = part.partition(":")
+        code, name = code.strip().lower(), name.strip()
+        if sep and name and 2 <= len(code) <= 3 and code.isalpha() and code not in RESERVED_LANGUAGE_CODES:
+            languages[code] = name
+    return languages
+
+
+def register_languages(extra: Mapping[str, str], second_language: str = "") -> None:
+    """Add the languages from .env to the menu, and name the other language of the mixed option."""
+    for code, name in extra.items():
+        LANGUAGES[code] = code
+        LANGUAGE_NAMES[code] = name
+    LANGUAGE_NAMES[MIXED] = f"English + {second_language} (mixed)" if second_language else "English + your other language (mixed)"
 
 # Notes model providers -> the .env variable holding their API key.
 PROVIDER_KEY_VARS = {
@@ -42,6 +65,8 @@ class Config:
     server_token: str | None = None
     local_transcriber: str | None = None  # e.g. "small": transcribe Local-only recordings on this laptop
     allowed_hosts: tuple[str, ...] = ()  # extra host names the app answers to (your Tailscale name, for the phone)
+    extra_languages: Mapping[str, str] = field(default_factory=dict)  # code -> name, added to the language menu
+    second_language: str = ""  # the other language of "English + ... (mixed)" recordings, e.g. "Spanish"
 
 
 def load_config(env_file: Path | None = None, environ: Mapping[str, str] | None = None) -> Config:
@@ -66,4 +91,6 @@ def load_config(env_file: Path | None = None, environ: Mapping[str, str] | None 
         server_token=get("TRANSCRIBE_SERVER_TOKEN") or None,
         local_transcriber=get("LOCAL_TRANSCRIBER") or None,
         allowed_hosts=tuple(h.strip().lower() for h in get("TRANSCRIBER_ALLOWED_HOSTS").split(",") if h.strip()),
+        extra_languages=parse_languages(get("EXTRA_LANGUAGES")),
+        second_language=get("SECOND_LANGUAGE"),
     )

@@ -123,8 +123,8 @@ def test_settings_defaults_and_update(store):
                 "time_zone": "UTC", "scan_folders": "", "class_reminders": "1", "vault_folder": "",
                 "default_privacy": "standard"}
     assert store.get_settings() == defaults
-    store.update_settings({"vocabulary": "Zorvath", "default_language": "ur"})
-    assert store.get_settings() == {**defaults, "vocabulary": "Zorvath", "default_language": "ur"}
+    store.update_settings({"vocabulary": "Zorvath", "default_language": "es"})
+    assert store.get_settings() == {**defaults, "vocabulary": "Zorvath", "default_language": "es"}
     with pytest.raises(ValueError):
         store.update_settings({"bogus": "1"})
 

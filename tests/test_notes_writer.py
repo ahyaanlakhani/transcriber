@@ -133,14 +133,14 @@ def test_combining_step_asks_for_low_effort_and_parts_do_not():
 
 
 def test_a_request_the_model_calls_too_large_is_retried_in_smaller_parts():
-    # Roman Urdu takes about twice the tokens of English for the same characters, so a part sized for English can be
+    # Another language in Roman letters takes about twice the tokens of English for the same characters, so a part sized for English can be
     # too big for a small-limit model (Groq answers HTTP 413). The writer halves the part size and carries on.
     part = {"summary": [{"text": "part", "cites": []}], "decisions": [], "action_items": [],
             "open_questions": [], "topics": []}
     llm = FakeLLM(replies=[PermanentError("Groq rejected the request (HTTP 413)"), part, part, WRITER_REPLY])
     llm.max_input_chars = 14_000
     paragraphs = [Paragraph(float(n * 10), "x" * 2_300) for n in range(6)]
-    notes = write_notes(llm, title="Urdu", paragraphs=paragraphs, long_form=False, existing_topics=[], call=DIRECT)
+    notes = write_notes(llm, title="Romanized", paragraphs=paragraphs, long_form=False, existing_topics=[], call=DIRECT)
     assert len(llm.calls) == 4
     assert len(llm.calls[0]["user"]) > len(llm.calls[1]["user"])
     assert [i.text for i in notes.decisions] == ["Migrate on Saturday."]
@@ -150,7 +150,7 @@ def test_a_too_large_request_that_cannot_get_smaller_still_fails():
     llm = FakeLLM(replies=[PermanentError("Groq rejected the request (HTTP 413)")] * 12)
     llm.max_input_chars = 14_000
     with pytest.raises(PermanentError):
-        write_notes(llm, title="Urdu", paragraphs=[Paragraph(0.0, "x" * 600)], long_form=False, existing_topics=[],
+        write_notes(llm, title="Romanized", paragraphs=[Paragraph(0.0, "x" * 600)], long_form=False, existing_topics=[],
                     call=DIRECT)
 
 
@@ -161,6 +161,6 @@ def test_a_refused_part_is_split_alone_and_the_parts_already_written_are_kept(mo
     monkeypatch.setattr("transcriber.notes.writer.split_parts", lambda paragraphs, max_chars: [paragraphs[:2], paragraphs[2:]])
     # part 1 is fine; part 2 is refused, then its two halves are written; then the merge
     llm = FakeLLM(replies=[part, PermanentError("Groq rejected the request (HTTP 413)"), part, part, WRITER_REPLY])
-    notes = write_notes(llm, title="Urdu", paragraphs=big, long_form=False, existing_topics=[], call=DIRECT)
+    notes = write_notes(llm, title="Romanized", paragraphs=big, long_form=False, existing_topics=[], call=DIRECT)
     assert len(llm.calls) == 5  # not 3 + 5: part 1 was not written twice
     assert [i.text for i in notes.decisions] == ["Migrate on Saturday."]

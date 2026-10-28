@@ -59,8 +59,13 @@ def detail(env, rid):
 
 # --- status and uploads
 
+def without_languages(status: dict) -> dict:
+    """The language menu is checked in test_config; the rest of the status is what these tests are about."""
+    return {key: value for key, value in status.items() if key not in ("languages", "second_language")}
+
+
 def test_status_reports_transcriber_and_notes_models(env):
-    assert env.client.get("/api/status").json() == {
+    assert without_languages(env.client.get("/api/status").json()) == {
         "api_key_configured": True,
         "notes": {"writer": "cerebras:gpt-oss-120b", "checker": "gemini:gemini-3.8-flash"},
         "ask": "cerebras:gpt-oss-120b", "mixed": False}  # no Claude here, so Ask falls back to the notes writer
@@ -69,17 +74,16 @@ def test_status_reports_transcriber_and_notes_models(env):
 def test_without_any_models_uploads_wait_in_queue(tmp_path, wav):
     app = build(tmp_path)
     with TestClient(app) as client:
-        assert client.get("/api/status").json() == {"api_key_configured": False,
-                                                    "notes": {"writer": None, "checker": None}, "ask": None,
-                                                    "mixed": False}
+        assert without_languages(client.get("/api/status").json()) == {
+            "api_key_configured": False, "notes": {"writer": None, "checker": None}, "ask": None, "mixed": False}
         response = client.post("/api/recordings", files=[("files", ("a.wav", wav, "audio/wav"))])
         assert response.json()[0]["status"] == "queued"
         assert app.state.worker is None
 
 
 def test_upload_creates_queued_recording_and_subject(env, wav):
-    rec = upload(env, wav, titles=["Daily standup"], subject="Team", language="ur")
-    assert (rec["title"], rec["subject"], rec["language"], rec["status"]) == ("Daily standup", "Team", "ur", "queued")
+    rec = upload(env, wav, titles=["Daily standup"], subject="Team", language="es")
+    assert (rec["title"], rec["subject"], rec["language"], rec["status"]) == ("Daily standup", "Team", "es", "queued")
     assert isinstance(rec["subject_id"], int)
     assert (env.data_dir / "recordings" / rec["id"] / "upload.wav").exists()
     assert env.client.get("/api/subjects").json() == [
@@ -88,10 +92,10 @@ def test_upload_creates_queued_recording_and_subject(env, wav):
 
 
 def test_upload_defaults(env, wav):
-    env.client.put("/api/settings", json={"default_language": "ur"})
+    env.client.put("/api/settings", json={"default_language": "es"})
     rec = upload(env, wav)
     assert rec["title"] == f"standup — {date.today():%Y-%m-%d}"
-    assert (rec["language"], rec["subject"], rec["subject_id"]) == ("ur", None, None)
+    assert (rec["language"], rec["subject"], rec["subject_id"]) == ("es", None, None)
 
 
 def test_upload_rejects_unknown_language(env, wav):

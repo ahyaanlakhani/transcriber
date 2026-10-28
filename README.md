@@ -13,14 +13,14 @@ computer; nothing is sent anywhere you have not approved.
 
 | | |
 |---|---|
-| **Transcribe** | Whisper large-v3 (via Groq) for speed, Gemini for English and Urdu spoken in the same sentence, an optional on-device model for recordings that must never leave the laptop, and your own GPU server for speaker labels. |
+| **Transcribe** | Whisper large-v3 (via Groq) for speed, Gemini for English mixed with another language in the same sentence, an optional on-device model for recordings that must never leave the laptop, and your own GPU server for speaker labels. |
 | **Notes you can check** | Lecture notes by topic (definitions, examples, what the lecturer stressed), or meeting notes (decisions, action items, open questions). Each point links to the moment it was said and carries the checker's verdict. |
 | **Ask** | Chat about one recording, or across all of them, in three modes: look something up, synthesise across lectures, or apply an idea to a new problem. |
 | **Brain** | A concept index built from your notes: definitions in your own terms, where each idea came up, a concept map, your own notes on a concept, and a conflict-safe Obsidian export. |
 | **Learn** | Flashcards from your own definitions on an FSRS-5 spaced-repetition schedule, plus teach-back: explain an idea in your own words and see what your lectures say you got right or left out. |
 | **Today, Calendar, Projects** | Your day on one page, class timetables with missed-class detection, and projects that tie recordings, people, concepts and tasks together. |
 | **Pip** | A small assistant that edits your calendar and reminders (every change has an Undo) and remembers what you tell it. |
-| **Translate** | One click turns a Roman Urdu or mixed-language transcript into English, paragraph by paragraph, keeping every timestamp. |
+| **Translate** | One click turns a transcript in another language, or a mixed-language one, into English, paragraph by paragraph, keeping every timestamp. |
 | **Privacy gateway** | Every send to a cloud provider is checked against approvals you set per provider and per recording (Standard, Private, Local only), and logged. Nothing leaves without a yes. |
 
 ![A recording's study notes](docs/screenshots/notes.png)
@@ -50,6 +50,18 @@ Then open http://127.0.0.1:8001. The demo uses fake transcription and fake AI re
 
 The step-by-step guide is in [docs/user-guide.md](docs/user-guide.md); [docs/privacy.md](docs/privacy.md) explains the
 approvals; [docs/offline.md](docs/offline.md) covers the on-device model.
+
+## Your own language
+
+English is the default. Add any language Whisper supports in `.env`, and name the other language of mixed lectures:
+
+```
+EXTRA_LANGUAGES=es:Spanish,fr:French
+SECOND_LANGUAGE=Spanish
+```
+
+The language menus, the mixed-language option, the Roman-letter conversion and the English translation all follow
+those two settings; nothing in the code is tied to one language. Details are in [docs/user-guide.md](docs/user-guide.md).
 
 ## How it is built
 

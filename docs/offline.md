@@ -20,7 +20,7 @@ How it behaves:
 - **Notes:** there is no local notes model (it would be a large download and too slow on this hardware), so a Local-only
   recording gets a transcript you can read and search but no AI notes.
 - Live recording text still needs the cloud, so a Local-only live recording saves and is transcribed afterwards.
-- Mixed English–Urdu: Whisper handles it less well than Gemini does, and Gemini isn't allowed for Local-only. Expect rougher text.
+- Mixed-language lectures (English plus another language): Whisper handles them less well than Gemini does, and Gemini isn't allowed for Local-only. Expect rougher text.
 
 Not done: Parakeet and other models. The reminder for Monday 19 October is to try Parakeet on your own lectures first.
 

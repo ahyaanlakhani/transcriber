@@ -109,8 +109,8 @@ function renderRecorder() {
     [["standard", "Standard"], ["private", "Private"], ["local_only", "Local only"]].map(([value, name]) =>
       el("option", { value, selected: value === r.privacy }, name)));
   const language = el("select", { "aria-label": "Language", disabled: locked, onchange: (e) => { r.language = e.target.value; } },
-    Object.entries(LANGUAGE_NAMES).map(([code, name]) => el("option", { value: code, selected: code === r.language,
-      disabled: code === "mixed" && !state.status?.mixed }, name)));
+    languageCodes().map((code) => el("option", { value: code, selected: code === r.language,
+      disabled: code === "mixed" && !state.status?.mixed }, LANGUAGE_NAMES[code])));
   const head = el("div", { class: "sheet-head" },
     el("div", { class: "title-row" },
       el("span", { class: `rec-dot${r.phase === "recording" ? " live" : ""}`, "aria-hidden": "true" }),
