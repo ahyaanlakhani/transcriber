@@ -63,6 +63,28 @@ SECOND_LANGUAGE=Spanish
 The language menus, the mixed-language option, the Roman-letter conversion and the English translation all follow
 those two settings; nothing in the code is tied to one language. Details are in [docs/user-guide.md](docs/user-guide.md).
 
+## Local models
+
+Nothing has to leave your computer if you don't want it to:
+
+- **Transcription on this machine.** Set `LOCAL_TRANSCRIBER=small` (or another Whisper size) in `.env`, and recordings
+  marked *Local only* are transcribed on your laptop with no network call. See [docs/offline.md](docs/offline.md).
+- **Your own server.** `server/` is a small transcription server you can run on a GPU machine you control; the app sends
+  audio there and gets back a transcript with speaker labels.
+- **The privacy gateway** keeps *Private* and *Local only* recordings away from every cloud provider, whichever of the
+  above you use.
+
+Running the notes, checker and Ask models locally (for example through Ollama, LM Studio or llama.cpp) is the next step:
+see the roadmap below.
+
+## Roadmap
+
+- **Local language models** for notes, fact-checking and Ask, behind the same `provider:model` setting.
+- **Master notes**: one document per subject, merged by topic across every lecture and class.
+- **A native Mac and iPhone app** with live transcription, using on-device speech and language models.
+- **Phone access** to your library away from home, over a private network, with the same approvals.
+- **Audio recaps**: a short spoken summary of a day or a topic, generated from your notes.
+
 ## How it is built
 
 - **Backend:** FastAPI and SQLite (one file, forward-only migrations tracked with `PRAGMA user_version`, a backup written
