@@ -63,6 +63,18 @@ SECOND_LANGUAGE=Spanish
 The language menus, the mixed-language option, the Roman-letter conversion and the English translation all follow
 those two settings; nothing in the code is tied to one language. Details are in [docs/user-guide.md](docs/user-guide.md).
 
+## Integrations
+
+Your data is yours to take elsewhere. Today the app can export:
+
+- **Obsidian:** your Brain as a vault of linked Markdown pages. Exporting again never overwrites a page you edited.
+- **Calendar:** class timetables and reminders as an `.ics` file for Google, Apple or Outlook.
+- **Anki:** your flashcards as an importable text file.
+
+Everything is a plain file made on your computer; no account is needed. New integrations are small modules in
+`transcriber/integrations.py`, so adding another (Notion, Zotero and so on) is a contained change. Details are in
+[docs/integrations.md](docs/integrations.md).
+
 ## Local models
 
 Nothing has to leave your computer if you don't want it to:
@@ -79,6 +91,8 @@ see the roadmap below.
 
 ## Roadmap
 
+- **A local-only Brain** (in progress): a knowledge base for your material, recordings and content that is built, stored
+  and searched entirely on your computer, with no cloud model involved.
 - **Local language models** for notes, fact-checking and Ask, behind the same `provider:model` setting.
 - **Master notes**: one document per subject, merged by topic across every lecture and class.
 - **A native Mac and iPhone app** with live transcription, using on-device speech and language models.
