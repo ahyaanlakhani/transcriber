@@ -75,7 +75,18 @@ Everything is a plain file made on your computer; no account is needed. New inte
 `transcriber/integrations.py`, so adding another (Notion, Zotero and so on) is a contained change. Details are in
 [docs/integrations.md](docs/integrations.md).
 
-## Local models
+## Cloud models and local models
+
+Use whichever mix suits you, per recording:
+
+- **Cloud models:** Whisper large-v3 on Groq for fast transcription, Gemini for mixed-language speech and the notes
+  checker, and Groq, Cerebras, OpenRouter, OpenAI or Gemini for writing notes and answering questions. Most have free
+  tiers. You choose each one in `.env` with a `provider:model` line and paste in your own keys.
+- **Local models:** transcription on your own machine, as described below.
+
+You decide per recording which kind may touch it (Standard, Private or Local only), and the privacy gateway enforces it.
+
+### Running locally
 
 Nothing has to leave your computer if you don't want it to:
 
