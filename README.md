@@ -7,7 +7,9 @@ The notes are written by one model and **fact-checked against the transcript by 
 every point comes with a verdict you can trust. Your recordings, notes and database live in a folder on your own
 computer; nothing is sent anywhere you have not approved.
 
-![A walkthrough: Today, a recording's cited notes and transcript, the Brain, Learn and the calendar](docs/demo.gif)
+[![Watch the 60-second demo: Today, a recording's cited notes and transcript, the Brain, Learn and the calendar, in dark and light mode](docs/demo-poster.png)](docs/demo.mp4)
+
+*Click to watch the 60-second walkthrough (MP4).*
 
 ![The Today page and the library](docs/screenshots/today.png)
 
