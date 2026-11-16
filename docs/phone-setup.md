@@ -57,8 +57,8 @@ In the **Shortcuts** app, tap **+** and name the shortcut **Send to Transcriber*
    - Tap **Show More** and set **Method** to **POST** and **Request Body** to **Form**.
    - Add a field named `file` with the type **File**, and choose **Shortcut Input** as its value.
    - Add a field named `subject` with the type **Text**, and choose **Chosen Item** as its value.
-6. Add **Show Notification** with *Contents of URL* as the text. It reads like "Sent “Lecture 4” to Emerging
-   Tech. The transcript and notes will follow."
+6. Add **Show Notification** with *Contents of URL* as the text. It reads like "Sent “Lecture 4” to Machine
+   Learning. The transcript and notes will follow."
 
 Replace `YOUR-ADDRESS` with the address from step 1.3, without a slash at the end.
 

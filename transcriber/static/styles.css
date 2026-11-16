@@ -925,13 +925,35 @@ dialog label.check input { margin: 0; }
 @media (prefers-reduced-motion: reduce) { .pip-nudge { animation: none; } }
 
 /* list: the toggle that shows or hides the parts of joined classes */
-.list-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.6rem; margin-top: 0.5rem; }
-.list-tools[hidden], #combine-all[hidden], #rename-tools[hidden] { display: none; }
+#list-menu[hidden], #rename-hint[hidden], #combine-hint[hidden], #separate-row[hidden] { display: none; }
+.stack-title { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.stack-title h2 { min-width: 0; overflow-wrap: anywhere; }
+.stack-title .menu > summary { padding: 0.2rem 0.35rem; }
+.list-hint { margin: 0.35rem 0 0; font-size: 0.8rem; color: var(--ink-3); }
+.list-hint + .list-hint { margin-top: 0.15rem; }
+.list-hint .link { font-size: inherit; }
+.list-hint .nowrap { white-space: nowrap; }
+/* a view setting, not an action: smaller and quieter than the menu's buttons, set apart by a rule */
+.screen-option { display: flex; align-items: flex-start; gap: 0.6rem; margin: 0.9rem 0 0; cursor: pointer; }
+.screen-option input { margin: 0.2rem 0 0; accent-color: var(--blue); }
+.screen-option span { display: grid; gap: 0.15rem; }
+.screen-option small { font-size: 0.8rem; line-height: 1.4; color: var(--ink-3); }
+.rec-screen { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; font-weight: 600; color: var(--ink-2); }
+.screen-view { margin: 0 0 0.6rem; }
+.screen-view > summary { cursor: pointer; font-size: 0.85rem; font-weight: 600; color: var(--ink-2); padding: 0.2rem 0; }
+.screen-view > summary small { font-weight: 400; color: var(--ink-3); }
+.screen-video { display: block; width: 100%; max-height: 22rem; margin-top: 0.4rem; border: 1px solid var(--rule-strong);
+  border-radius: 6px; background: #000; object-fit: contain; cursor: pointer; }
+.screen-actions { display: flex; justify-content: space-between; align-items: center; gap: 0.6rem; margin-top: 0.3rem; }
+.screen-note { font-size: 0.78rem; color: var(--ink-3); }
+.screen-buttons { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.2rem 0.4rem; }
+.menu-check { display: flex; align-items: center; gap: 0.45rem; margin-top: 0.2rem; padding: 0.45rem 0.6rem 0.3rem;
+  border-top: 1px solid var(--rule); font-size: 0.78rem; color: var(--ink-3); cursor: pointer; }
+.menu-check input { width: 0.85rem; height: 0.85rem; margin: 0; accent-color: var(--blue); }
+.menu-check:hover { color: var(--ink-2); }
 .segmented { display: inline-flex; gap: 2px; padding: 2px; border-radius: 9px; border: 1px solid var(--rule); background: var(--menu-hover); }
 .segmented button { padding: 0.25rem 0.75rem; border: 0; border-radius: 7px; background: none; color: var(--ink-2); font: 600 0.78rem/1.3 var(--ui); }
 .segmented button[aria-pressed=true] { color: var(--ink); background: var(--paper); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2); }
-#combine-all, #rename-all, #rename-standard { padding: 0.25rem 0.7rem; font: 600 0.78rem/1.3 var(--ui); color: var(--blue); background: none;
-  border: 1px solid var(--blue); border-radius: 999px; }
 #combine-all:disabled, #rename-all:disabled, #rename-standard:disabled { opacity: 0.6; }
 .dup-banner.parts .link { font-size: inherit; }
 

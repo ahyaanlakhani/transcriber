@@ -109,7 +109,7 @@ function partsBanner(rec) {
 // "Untitled" or an address like "University Rd".
 async function renameRecordings(scope, button) {
   const label = button.textContent;
-  const buttons = [...document.querySelectorAll("#rename-tools button")];
+  const buttons = [...document.querySelectorAll("#rename-all, #rename-standard")];
   const params = new URLSearchParams({ scope });
   const { type, id } = state.filter;
   if (type === "subject") params.set("subject_id", id);

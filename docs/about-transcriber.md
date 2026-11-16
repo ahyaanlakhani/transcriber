@@ -22,7 +22,8 @@ to the audio.
 - **Record live** in the browser: microphone, computer sound, or both. Text appears about 10–20 seconds behind.
 - **Record a Zoom, Teams or Meet call straight from Windows.** No screen-sharing prompt, no bot joining the call,
   and it works with the browser in the background. Your microphone and the call's sound are kept as separate
-  tracks, so every line is labelled **You** or **Others**.
+  tracks, so every line is labelled **You** or **Others**. Optionally it records your screen too (with any way of recording),
+  kept only on your laptop, and plays it in step with the transcript.
 - **Voice memos from an iPhone** with a one-tap "Send to Transcriber" shortcut (needs a private connection such as
   Tailscale; see `docs/phone-setup.md`).
 - Finds **phone recordings already sitting in your laptop's Downloads folder** and shows which classes they

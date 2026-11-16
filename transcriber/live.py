@@ -21,6 +21,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from . import audio, privacy
+from . import screen
 from .channels import NAMES, OTHERS_FILE, YOU_FILE, label_segments
 from .config import LANGUAGES, MIXED
 from .pipeline import AUDIO_FILE
@@ -201,6 +202,7 @@ class LiveManager:
         self._sleep, self._clock = sleep, clock
         self.sessions: dict[str, LiveSession] = {}
         self.finished: dict[str, str | None] = {}
+        self._screens: dict[str, object] = {}  # a ScreenCapture for each live recording that also records the screen
         self._lock = threading.Lock()
         self._stop = threading.Event()
         self._thread = None
@@ -210,9 +212,23 @@ class LiveManager:
 
     # --- lifecycle
 
+    def start_screen(self, sid: str, recorder, t0: float) -> None:
+        """Also record the screen for this live recording (microphone, computer sound or both). t0 is the clock reading
+        when its audio starts. The recorder never fails the recording: it keeps its own error to show."""
+        self._get(sid)
+        recorder.start(t0)
+        self._screens[sid] = recorder
+
+    def _stop_screen(self, sid: str) -> None:
+        recorder = self._screens.pop(sid, None)
+        if recorder:
+            recorder.stop()
+
     def stop(self) -> None:
         """App shutdown: sessions stay on disk and become recordings at the next start."""
         self._stop.set()
+        for sid in list(self._screens):
+            self._stop_screen(sid)  # so the last piece of video is closed properly
         for session in list(self.sessions.values()):
             session.kill()
 
@@ -224,6 +240,7 @@ class LiveManager:
         for folder in sorted(p for p in self.live_dir.iterdir() if p.is_dir()):
             if folder.name in self.sessions:
                 continue
+            screen.stop_stale(folder)  # a screen recorder the last run left behind must stop before its video is kept
             try:
                 meta = json.loads((folder / "meta.json").read_text(encoding="utf-8"))
             except (OSError, ValueError):
@@ -276,9 +293,11 @@ class LiveManager:
         if sid in self.finished:
             return {"status": "done", "recording_id": self.finished[sid], "segments": [], "next": after}
         session = self._get(sid)
+        recorder = self._screens.get(sid)
         with session.lock:
             segments = session.segments[after:]
             return {"status": session.status, "duration_sec": round(len(session.rms) / FRAMES_PER_SEC, 2),
+                    "screen": {"error": recorder.error, "notice": recorder.notice, "low_disk": recorder.low_disk()} if recorder else None,
                     "transcribed_sec": round(session.cursor / FRAMES_PER_SEC, 2),
                     "segments": [{"start": s.start, "end": s.end, "text": s.text,
                                   **({"speaker": NAMES.get(s.speaker)} if session.raw else {})} for s in segments],
@@ -293,6 +312,7 @@ class LiveManager:
         if sid in self.finished:
             return self.finished[sid]
         session = self._get(sid)
+        self._stop_screen(sid)  # before saving, so the video's last piece is on disk
         with session.lock:
             session.status = "finishing"
         session.close_input()
@@ -327,6 +347,7 @@ class LiveManager:
         session = self.sessions.get(sid)
         if session is None:
             return
+        self._stop_screen(sid)
         session.kill()
         with self._lock:
             self.sessions.pop(sid, None)
@@ -477,6 +498,10 @@ class LiveManager:
                     audio.pcm_to_flac(source, rec_dir / name, SAMPLE_RATE)
             self.store.update_recording(rid, notes_style="meeting")
             self.store.set_speaker_names(rid, NAMES)
+        try:
+            screen.join_into(folder, rec_dir)  # the screen video of a meeting, if there was one
+        except Exception:
+            log.exception("Couldn't keep the screen recording")
         if segments is not None:
             text = "\n\n".join(p.text for p in to_paragraphs(segments))
             self.store.save_transcript(rid, text, segments, f"{self.transcriber.name} (live)")

@@ -20,6 +20,10 @@ function newRecorder() {
     elapsedMs: 0, runningSince: null, durationSec: 0, transcribedSec: 0, level: 0, devices: [],
     media: null, streams: [], ctx: null, analyser: null, wakeLock: null, timers: [], ui: null, discarded: false,
     meetingInfo: null, levels: { you: 0, others: 0 },
+    screen: (() => { try { return localStorage.getItem("rec.screen") === "1"; } catch { return false; } })(),
+    screenOn: false, screenNote: null,  // a meeting recorded with its screen, and a problem with that
+    mic: (() => { try { return localStorage.getItem("rec.meetingMic") !== "0"; } catch { return true; } })(),
+    micOn: true,  // whether the running meeting includes your microphone
   };
 }
 
@@ -53,24 +57,59 @@ function meetingNote(r) {
   const info = r.meetingInfo;
   return el("p", { class: "meeting-note" },
     info?.available === false ? info.reason
-      : info?.output ? `Records your speakers (${info.output}) and your microphone (${info.input}). Headphones work best, so the call doesn't echo into your microphone. `
+      : info?.output ? (r.mic && info.input
+        ? `Records your speakers (${info.output}) and your microphone (${info.input}). Headphones work best, so the call doesn't echo into your microphone. `
+        : `Records only what plays through your speakers (${info.output}): the other people on the call. `)
         : "Checking your speakers and microphone… ",
     "Tell everyone on the call you're recording.");
 }
 
-function meetingMeters(ui) {
+// "Also record my microphone": on by default, so your own words are labelled You. Turn it off for an online class you only
+// listen to: the recording is then just the class's sound, with no room noise from your side.
+function micOption(r) {
+  if (r.source !== "meeting") return null;
+  const box = el("input", { type: "checkbox", checked: r.mic, onchange: (e) => {
+    r.mic = e.target.checked;
+    try { localStorage.setItem("rec.meetingMic", r.mic ? "1" : "0"); } catch { /* just not remembered */ }
+    renderDetail();
+  } });
+  return el("label", { class: "screen-option", title: "Turn this off to record only the sound that plays through your speakers" }, box,
+    el("span", {}, el("strong", {}, "Also record my microphone"),
+      el("small", {}, r.mic
+        ? "Your own voice is recorded and labelled You. Turn it off for an online class you only listen to."
+        : "Only the class's sound is recorded (every line is labelled Others). Your microphone is not used.")));
+}
+
+// "Also record my screen": the whole screen, saved on this laptop beside the audio, whichever way the audio is recorded.
+// Off unless you tick it.
+function screenOption(r) {
+  const box = el("input", { type: "checkbox", checked: r.screen, onchange: (e) => {
+    r.screen = e.target.checked;
+    try { localStorage.setItem("rec.screen", r.screen ? "1" : "0"); } catch { /* just not remembered */ }
+  } });
+  return el("label", { class: "screen-option" }, box, el("span", {},
+    el("strong", {}, "Also record my screen"),
+    el("small", {}, "The whole main screen, kept only on this laptop and never sent anywhere. Everything on it is recorded, so close "
+      + "anything private first. It takes about 40–100 MB an hour."
+      + (r.source === "meeting" ? "" : " Pause isn't available while the screen is recorded."))));
+}
+
+function meetingMeters(ui, withMic = true) {
   ui.meterYou = el("span", { class: "rec-meter-fill" });
   ui.meterOthers = el("span", { class: "rec-meter-fill" });
   return el("span", { class: "rec-meters", "aria-hidden": "true" },
-    el("span", { class: "rec-meter-row" }, el("small", {}, "You"), el("span", { class: "rec-meter" }, ui.meterYou)),
-    el("span", { class: "rec-meter-row" }, el("small", {}, "Others"), el("span", { class: "rec-meter" }, ui.meterOthers)));
+    withMic ? el("span", { class: "rec-meter-row" }, el("small", {}, "You"), el("span", { class: "rec-meter" }, ui.meterYou)) : null,
+    el("span", { class: "rec-meter-row" }, el("small", {}, withMic ? "Others" : "Class sound"), el("span", { class: "rec-meter" }, ui.meterOthers)));
 }
 
 async function startMeeting(r) {
   r.phase = "starting";
   try {
-    const { id } = await api("/api/meeting/start", jsonRequest("POST", { title: r.title, subject: r.subject, language: r.language, privacy: r.privacy }));
+    const { id } = await api("/api/meeting/start", jsonRequest("POST", { title: r.title, subject: r.subject, language: r.language, privacy: r.privacy, screen: r.screen, mic: r.mic }));
     r.sid = id;
+    r.micOn = r.mic;
+    r.screenOn = r.screen;
+    r.screenNote = null;
     r.phase = "recording";
     r.runningSince = performance.now();
     r.timers.push(setInterval(() => pollLive(r), POLL_MS), setInterval(() => updateRecorder(), 500));
@@ -133,7 +172,7 @@ function renderRecorder() {
         el("option", { value: "" }, "Default microphone"),
         r.devices.map((d, i) => el("option", { value: d.deviceId, selected: d.deviceId === r.deviceId },
           d.label || `Microphone ${i + 1}`)))) : null;
-    controls = el("div", { class: "rec-setup" }, sources, mic, meetingNote(r),
+    controls = el("div", { class: "rec-setup" }, sources, mic, meetingNote(r), micOption(r), screenOption(r),
       r.error ? el("p", { class: "sheet-note", role: "alert" }, r.error) : null,
       el("div", { class: "rec-actions" },
         el("button", { type: "button", class: "primary rec-start", onclick: startRecording },
@@ -147,9 +186,11 @@ function renderRecorder() {
     ui.phase = el("span", { class: "rec-phase" });
     ui.pause = el("button", { type: "button", onclick: togglePause });
     controls = el("div", { class: "rec-bar" },
-      ui.timer, r.source === "meeting" ? meetingMeters(ui) : el("span", { class: "rec-meter", "aria-hidden": "true" }, ui.meter),
-      ui.phase, el("span", { class: "spacer" }),
-      r.phase === "saving" ? null : [r.source === "meeting" ? null : ui.pause,
+      ui.timer, r.source === "meeting" ? meetingMeters(ui, r.micOn) : el("span", { class: "rec-meter", "aria-hidden": "true" }, ui.meter),
+      ui.phase, r.screenOn ? el("span", { class: "rec-screen", title: "The whole screen is being recorded, on this laptop only" },
+        el("span", { class: "rec-dot live", "aria-hidden": "true" }), "Recording your screen") : null,
+      el("span", { class: "spacer" }),
+      r.phase === "saving" ? null : [r.source === "meeting" || r.screenOn ? null : ui.pause,
         el("button", { type: "button", class: "primary", onclick: stopRecording }, icon("stop"), "Stop and save"),
         el("button", { type: "button", class: "quiet", onclick: discardRecording }, "Discard")]);
   }
@@ -191,6 +232,7 @@ function updateRecorder(full = false) {
   if (r.phase === "setup" || r.phase === "error") tail = "Your words will appear here as you speak.";
   else if (r.phase === "saving") tail = "Transcribing the last few seconds and saving…";
   else if (r.notice) tail = r.notice;
+  else if (r.screenNote) tail = r.screenNote;
   else if (!r.segments.length) tail = "Listening… the first lines arrive after the first pause, about 10 seconds in.";
   else tail = behind > 2 ? `Listening… ${Math.round(behind)} s waiting to be transcribed.` : "Listening…";
   ui.tail.replaceChildren(cornell([], el("div", { class: "note-text muted" },
@@ -275,8 +317,10 @@ async function startRecording() {
     const mimeType = ["audio/webm;codecs=opus", "audio/webm"].find((t) => MediaRecorder.isTypeSupported(t));
     if (!mimeType) throw new Error("This browser can't record WebM audio. Use Chrome or Edge.");
     r.media = new MediaRecorder(mix.stream, { mimeType, audioBitsPerSecond: 48000 });
-    const { id } = await api("/api/live", jsonRequest("POST", { title: r.title, subject: r.subject, language: r.language, privacy: r.privacy }));
+    const { id } = await api("/api/live", jsonRequest("POST", { title: r.title, subject: r.subject, language: r.language, privacy: r.privacy, screen: r.screen }));
     r.sid = id;
+    r.screenOn = r.screen;
+    r.screenNote = null;
     r.media.addEventListener("dataavailable", (e) => {
       if (e.data.size) { r.queue.push({ seq: r.seq++, blob: e.data }); pumpUploads(r); }
     });
@@ -355,6 +399,10 @@ async function pollLive(r) {
     r.durationSec = body.duration_sec ?? r.durationSec;
     r.transcribedSec = body.transcribed_sec ?? r.transcribedSec;
     if (!r.notice?.startsWith("Can't reach the app")) r.notice = body.notice;
+    if (body.screen) {
+      r.screenNote = body.screen.error || body.screen.notice || (body.screen.low_disk ? "Your disk is nearly full (under 5 GB free). Stop soon, or free some space, so the recording isn't lost." : null);
+      if (body.screen.error) r.screenOn = false;
+    }
     updateRecorder();
   } catch { /* the next poll will try again */ }
 }

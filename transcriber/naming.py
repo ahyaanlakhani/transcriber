@@ -98,7 +98,7 @@ def suggest_class_names(store, writer, joined, tz: str) -> list[dict]:
 # --- many recordings at once: "Rename all" and "Rename the ones with a standard name"
 
 DEFAULT_NAME = re.compile(
-    r"^(new\s+)?(recording|voice\s+(memo|note|recording)|audio|untitled|memo|lecture|class)\s*#?\d*$", re.IGNORECASE)
+    r"^(new\s+|live\s+)?(recording|voice\s+(memo|note|recording)|audio|untitled|memo|lecture|class)\s*#?\d*$", re.IGNORECASE)
 # The "subject and date" fallback name ("Fri 25 Sep", "Machine Learning, Wed 23 Sep") is a placeholder too.
 DATE_NAME = re.compile(r"^(.+?\s*[,—–-]\s*)?(mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?,?\s+\d{1,2}\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*$", re.IGNORECASE)
 TRAILING_DATE = re.compile(r"\s*[—–-]\s*\d{4}-\d{2}-\d{2}.*$")
@@ -109,6 +109,8 @@ STREET_TYPES = {"road", "rd", "street", "st", "avenue", "ave", "lane", "ln", "dr
                 "highway", "hwy"}
 PLACE_NAME = re.compile(r"^(university|univ|college|campus)(\s+of\s+[a-z .'-]+?)?(\s+\d+)?$", re.IGNORECASE)
 MAX_ADDRESS_WORDS = 6
+# The phone numbers the recordings it makes in one place: "Northfield 10", "Maple Street 7".
+SEQUENCE_NUMBER = re.compile(r"\s+#?\d+$")
 BULK_BATCH = 8
 BULK_MATERIAL = 700
 BULK_SYSTEM = (
@@ -127,6 +129,11 @@ def is_standard_name(title: str, original_filename: str | None = None) -> bool:
         return True
     if PLACE_NAME.match(name):
         return True
+    # still exactly the phone's file name, with the phone's number on the end: a place the phone named it after
+    stem = original_stem(original_filename) if original_filename else None
+    if stem and stem.strip() == name and SEQUENCE_NUMBER.search(name):
+        return True
+    name = SEQUENCE_NUMBER.sub("", name) or name
     parts = name.split()
     last = re.sub(r"[^a-z]", "", parts[-1].lower())
     return 2 <= len(parts) <= MAX_ADDRESS_WORDS and last in STREET_TYPES

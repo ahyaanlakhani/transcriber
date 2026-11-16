@@ -138,6 +138,8 @@ def test_memory_panel_api_add_approve_and_forget(tmp_path):
     app = build(tmp_path, FakeTranscriber(), None, None)
     store = app.state.store
     add_notes(store, "m1", [{"text": "Send the survey.", "owner": "", "due": None, "cites": ["[01:00]"]}])
+    # the panel suggests from the last two weeks of the real clock, so this meeting has to be recent today
+    store.update_recording("m1", recorded_at=(datetime.now(UTC) - timedelta(days=1)).isoformat(timespec="seconds"))
     with TestClient(app) as client:
         added = client.post("/api/pip/memory", json={"kind": "relationship", "text": "Dana is my mentor"}).json()
         assert added["active"][0]["kind"] == "relationship"

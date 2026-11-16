@@ -296,17 +296,29 @@ function pendingClasses() {
   return [...classes.values()].map((c) => ({ ...c, ready: c.ids.every((id) => status.get(id) === "done") }));
 }
 
+// The list header keeps to its name and a "⋯" menu (Rename all, Show classes as their separate parts). Below it, one
+// quiet line each, only while there is something to do: recordings that still have the phone's own names, and classes
+// whose parts aren't joined yet.
 function renderListTools() {
-  $("#rename-tools").hidden = state.filter.type === "trash" || !state.recordings.length;
-  const hasClasses = state.filter.type !== "trash" && state.recordings.some((rec) => rec.session || isJoined(rec));
-  $("#list-tools").hidden = !hasClasses;
-  for (const button of document.querySelectorAll("#list-mode button")) button.setAttribute("aria-pressed", String(button.dataset.mode === listMode));
+  const trash = state.filter.type === "trash";
+  const hasClasses = !trash && state.recordings.some((rec) => rec.session || isJoined(rec));
+  const menu = $("#list-menu");
+  menu.hidden = trash || !state.recordings.length;
+  if (menu.hidden) menu.removeAttribute("open");
+  $("#separate-row").hidden = !hasClasses;
+  $("#show-separate").checked = listMode === "separate";
+  const unnamed = trash ? 0
+    : state.recordings.filter((rec) => rec.standard_name && rec.status === "done" && !rec.session?.combined).length;
+  $("#rename-hint").hidden = !unnamed;
+  $("#rename-hint-text").textContent = unnamed === 1 ? "1 recording still has a default name"
+    : `${unnamed} recordings still have default names`;
   const ready = pendingClasses().filter((c) => c.ready).length;
   const combine = $("#combine-all");
-  combine.hidden = !ready;
   if (!combine.dataset.busy) {
+    $("#combine-hint").hidden = !ready;
+    $("#combine-hint-text").textContent = ready === 1 ? "1 class is still in parts" : `${ready} classes are still in parts`;
     combine.disabled = false;
-    combine.textContent = ready === 1 ? "Combine this class" : `Combine all ${ready} classes`;
+    combine.textContent = ready === 1 ? "Combine it" : "Combine them";
   }
 }
 
@@ -677,9 +689,76 @@ function renderHeader(rec) {
     el("div", { class: "tags" }, tags,
       el("input", { class: "tag-add", placeholder: "add topic", list: "topic-options", autocomplete: "off", "aria-label": "Add a topic",
         onkeydown: (e) => { if (e.key === "Enter") { e.preventDefault(); addTopic(e.target.value); } } })),
-    rec.has_audio ? el("div", { class: "player" },
-      el("audio", { controls: true, preload: "metadata", src: `/api/recordings/${rec.id}/audio` })) : null,
+    playerBlock(rec),
     recapStrip(rec), highlightsStrip(rec));
+}
+
+// The recording's audio, and above it the screen video when the meeting was recorded with its screen. The video has no
+// controls of its own: it follows the audio, so clicking a transcript line (which seeks the audio) shows the screen as it was.
+function playerBlock(rec) {
+  if (!rec.has_audio) return null;
+  const audio = el("audio", { controls: true, preload: "metadata", src: `/api/recordings/${rec.id}/audio` });
+  return el("div", { class: "player" }, rec.screen && !rec.deleted_at ? screenView(rec, audio) : null, audio);
+}
+
+function screenView(rec, audio) {
+  const offset = rec.screen.offset || 0;  // the video starts this many seconds after the audio
+  // The video has its own controls (play, pause, scrub, full screen). Its sound is off: the audio player is the one sound.
+  const video = el("video", { class: "screen-video", muted: true, playsinline: true, controls: true, controlsList: "nodownload",
+    preload: "metadata", src: `/api/recordings/${rec.id}/screen`, "aria-label": "Screen recording, in step with the audio" });
+  video.muted = true;
+  // The audio player is the clock and the only sound. The video follows it, and its own controls drive it: play, pause and
+  // scrubbing on the video move the audio. `ours` marks a seek we start ourselves, so it isn't mistaken for the viewer's.
+  let ours = false;
+  const target = () => Math.max(0, audio.currentTime - offset);
+  const moveVideo = (seconds) => {
+    ours = true;
+    video.currentTime = seconds;
+    setTimeout(() => { ours = false; }, 1500);  // in case the browser sends no "seeked" for it
+  };
+  let pauseTimer = 0;  // set while a pause on the video is being checked (see below)
+  const sync = () => {
+    if (video.seeking || pauseTimer) return;  // the viewer is scrubbing or just paused: don't pull or restart the video
+    if (audio.currentTime < offset) { if (video.currentTime > 0.05) moveVideo(0); return; }  // not started yet: first frame
+    if (Math.abs(video.currentTime - target()) > 0.4) moveVideo(target());
+    if (!audio.paused && video.paused && !video.ended) video.play().catch(() => {});
+  };
+  audio.addEventListener("play", sync);
+  audio.addEventListener("pause", () => { if (audio.paused) video.pause(); });
+  audio.addEventListener("seeked", sync);
+  audio.addEventListener("timeupdate", sync);
+  audio.addEventListener("ratechange", () => { video.playbackRate = audio.playbackRate; });
+  // Browsers pause the video for a moment while you scrub and then play it again. That isn't a pause by the viewer, so
+  // the audio is only paused if the video is still paused a moment later.
+  video.addEventListener("play", () => { clearTimeout(pauseTimer); pauseTimer = 0; if (audio.paused) audio.play().catch(() => {}); });
+  video.addEventListener("pause", () => {
+    clearTimeout(pauseTimer);
+    pauseTimer = setTimeout(() => {
+      pauseTimer = 0;
+      if (video.paused && !video.seeking && !video.ended && !audio.paused) audio.pause();
+    }, 200);
+  });
+  video.addEventListener("seeking", () => {  // the viewer scrubbed or skipped: the audio goes there at once
+    if (ours) return;
+    audio.currentTime = Math.max(0, video.currentTime + offset);
+  });
+  video.addEventListener("seeked", () => { ours = false; });
+  const size = rec.screen.bytes >= 1e6 ? `${Math.round(rec.screen.bytes / 1e6)} MB` : `${Math.max(1, Math.round(rec.screen.bytes / 1e3))} KB`;
+  const remove = el("button", { type: "button", class: "quiet danger", onclick: async () => {
+    if (!confirm("Delete the screen video? The audio, transcript and notes stay. This can't be undone.")) return;
+    try {
+      await api(`/api/recordings/${rec.id}/screen`, { method: "DELETE" });
+    } catch (error) { alert(error.message); return; }
+    flash("Screen video deleted.");
+    await selectRecording(rec.id);
+  } }, "Delete video");
+  return el("details", { class: "screen-view", open: true },
+    el("summary", {}, el("span", {}, "Screen recording"), el("small", {}, ` · ${size}`)),
+    video, el("div", { class: "screen-actions" }, el("small", { class: "screen-note" }, "The sound plays from the audio player below."),
+      el("span", { class: "screen-buttons" },
+        el("a", { class: "button quiet", href: `/api/recordings/${rec.id}/screen/download`,
+          title: "One MP4 with the picture and the sound together, to keep or play anywhere" }, icon("download"), "Download video with sound"),
+        remove)));
 }
 
 // ---- Highlights reel: the key moments, cut from the recording, in the speaker's own voice
@@ -2115,14 +2194,16 @@ function wireEvents() {
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") setDrawer(false); });
 
   $("#record-button").addEventListener("click", () => openRecorder());
-  $("#list-mode").addEventListener("click", (e) => {
-    const mode = e.target.closest("button")?.dataset.mode;
-    if (!mode || mode === listMode) return;
-    listMode = mode;
-    try { localStorage.setItem("list.mode", mode); } catch { /* the choice just isn't remembered */ }
+  $("#show-separate").addEventListener("change", (e) => {
+    listMode = e.target.checked ? "separate" : "combined";
+    try { localStorage.setItem("list.mode", listMode); } catch { /* the choice just isn't remembered */ }
+    $("#list-menu").removeAttribute("open");
     renderList();
   });
-  $("#rename-all").addEventListener("click", (e) => renameRecordings("all", e.currentTarget));
+  $("#rename-all").addEventListener("click", (e) => {
+    $("#list-menu").removeAttribute("open");
+    renameRecordings("all", e.currentTarget);
+  });
   $("#rename-standard").addEventListener("click", (e) => renameRecordings("standard", e.currentTarget));
   $("#combine-all").addEventListener("click", (e) => {
     const button = e.currentTarget;
@@ -2200,9 +2281,11 @@ async function init() {
   window.showWelcome?.();  // Pip's welcome and class plan (welcome.js)
 }
 
-init().catch((error) => {
+// init uses functions from the scripts loaded after this one (naming.js, brain.js, ...); they have all run by the time
+// DOMContentLoaded fires, so the first list can't be drawn before, say, partTag exists.
+document.addEventListener("DOMContentLoaded", () => init().catch((error) => {
   document.body.prepend(el("p", { class: "error banner" }, `Could not reach the app: ${error.message}`));
-});
+}));
 
 // Tab lists: Left and Right move between the tabs, Home and End jump to the first and last, and focus stays on the
 // tab you land on (every tab list redraws its screen when a tab is chosen, which would otherwise drop focus).

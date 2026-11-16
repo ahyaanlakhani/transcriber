@@ -10,6 +10,8 @@ import time
 import numpy as np
 
 from .channels import FRAME_SAMPLES, SAMPLE_RATE, frame_levels
+from .awake import KeepAwake
+from .screen import ScreenCapture
 
 log = logging.getLogger(__name__)
 
@@ -65,14 +67,19 @@ class WasapiDevices:
             self._lib = lib
         return self._lib
 
-    def _pick(self, p):
+    def _pick(self, p, need_mic: bool = True):
         lib = self._lib
         try:
             api = p.get_host_api_info_by_type(lib.paWASAPI)
             out = p.get_device_info_by_index(api["defaultOutputDevice"])
+        except (OSError, KeyError) as exc:
+            raise MeetingError("I couldn't find your speakers. Check Windows' Sound settings.") from exc
+        try:
             mic = p.get_device_info_by_index(api["defaultInputDevice"])
         except (OSError, KeyError) as exc:
-            raise MeetingError("I couldn't find your speakers or microphone. Check Windows' Sound settings.") from exc
+            if need_mic:
+                raise MeetingError("I couldn't find your microphone. Check Windows' Sound settings.") from exc
+            mic = None
         if not out.get("isLoopbackDevice"):
             loop = next((d for d in p.get_loopback_device_info_generator() if out["name"] in d["name"]), None)
             if loop is None:
@@ -87,21 +94,23 @@ class WasapiDevices:
         except (MeetingError, OSError) as exc:
             return {"available": False, "reason": str(exc), "output": None, "input": None}
         try:
-            out, mic = self._pick(p)
-            return {"available": True, "reason": None, "output": out["name"].replace(" [Loopback]", ""), "input": mic["name"]}
+            out, mic = self._pick(p, need_mic=False)  # a computer without a microphone can still record a class
+            return {"available": True, "reason": None, "output": out["name"].replace(" [Loopback]", ""),
+                    "input": mic["name"] if mic else None}
         except MeetingError as exc:
             return {"available": False, "reason": str(exc), "output": None, "input": None}
         finally:
             p.terminate()
 
-    def open(self, on_you, on_others):
-        """Start both streams. Each callback gets (bytes, sample rate, channels). Returns a function that stops them."""
+    def open(self, on_you, on_others, mic: bool = True):
+        """Start the streams: the speakers, and your microphone unless mic is False (an online class you only listen
+        to). Each callback gets (bytes, sample rate, channels). Returns a function that stops them."""
         lib = self._pyaudio()
         p = lib.PyAudio()
         streams = []
         try:
-            out, mic = self._pick(p)
-            for device, callback in ((out, on_others), (mic, on_you)):
+            out, mic_device = self._pick(p, need_mic=mic)
+            for device, callback in ((out, on_others), (mic_device, on_you)) if mic else ((out, on_others),):
                 channels = max(1, min(int(device["maxInputChannels"]), 2))
                 rate = int(device["defaultSampleRate"])
                 streams.append(p.open(
@@ -133,8 +142,11 @@ class MeetingCapture:
     """Feeds one live session: every tick, the next slice of both tracks, kept in step with the clock.
     Windows delivers nothing while no sound is playing, so a quiet track is padded with silence."""
 
-    def __init__(self, live, sid: str, devices, clock=time.monotonic):
+    def __init__(self, live, sid: str, devices, clock=time.monotonic, screen=None, mic: bool = True, awake=None):
         self.live, self.sid, self.devices, self._clock = live, sid, devices, clock
+        self.screen = screen  # a ScreenCapture, when the screen is recorded too
+        self.mic = mic  # False: only the speakers (an online class you listen to), so the You track stays silent
+        self.awake = awake or KeepAwake(display=screen is not None)
         self.levels = {"you": 0.0, "others": 0.0}
         self._lock = threading.Lock()
         self._buffers = {"you": np.zeros(0, np.int16), "others": np.zeros(0, np.int16)}
@@ -155,7 +167,10 @@ class MeetingCapture:
 
     def start(self) -> None:
         self._t0 = self._clock()
-        self._stop_devices = self.devices.open(self._feed("you"), self._feed("others"))
+        self._stop_devices = self.devices.open(self._feed("you"), self._feed("others"), **({} if self.mic else {"mic": False}))
+        self.awake.start()  # the computer must not sleep while this runs
+        if self.screen:
+            self.screen.start(self._t0)  # never fails the meeting: it records why it couldn't
         self._thread = threading.Thread(target=self._run, name=f"meeting-{self.sid[:6]}", daemon=True)
         self._thread.start()
 
@@ -198,6 +213,9 @@ class MeetingCapture:
         if self._thread:
             self._thread.join(timeout=5)
             self._thread = None
+        if self.screen:
+            self.screen.stop()
+        self.awake.stop()
         try:
             self.pump()  # the last slice
         except KeyError:
@@ -207,18 +225,23 @@ class MeetingCapture:
 class MeetingManager:
     """Starts and stops meeting captures; each one is a live recording session fed from Windows."""
 
-    def __init__(self, live, devices, clock=time.monotonic):
+    def __init__(self, live, devices, clock=time.monotonic, screens=None, awake_factory=None):
         self.live, self.devices, self._clock = live, devices, clock
+        self.screens = screens or (lambda folder, clock: ScreenCapture(folder, clock=clock))  # tests pass a fake
+        self.awake_factory = awake_factory or (lambda display: KeepAwake(display=display))
         self.captures: dict[str, MeetingCapture] = {}
 
     def info(self) -> dict:
         return {**self.devices.info(), "recording": bool(self.captures)}
 
-    def start(self, *, title: str, subject_id: int | None, language: str, privacy: str | None = None) -> str:
+    def start(self, *, title: str, subject_id: int | None, language: str, privacy: str | None = None,
+              screen: bool = False, mic: bool = True) -> str:
         if self.captures:
             raise MeetingError("A meeting is already being recorded.")
         sid = self.live.create(title=title, subject_id=subject_id, language=language, meeting=True, privacy=privacy)
-        capture = MeetingCapture(self.live, sid, self.devices, self._clock)
+        recorder = self.screens(self.live.live_dir / sid, self._clock) if screen else None
+        capture = MeetingCapture(self.live, sid, self.devices, self._clock, screen=recorder, mic=mic,
+                                 awake=self.awake_factory(screen))
         try:
             capture.start()
         except MeetingError:
@@ -230,7 +253,10 @@ class MeetingManager:
     def poll(self, sid: str, after: int = 0) -> dict:
         body = self.live.poll(sid, after)
         capture = self.captures.get(sid)
-        return {**body, "levels": dict(capture.levels) if capture else None}
+        screen = None
+        if capture and capture.screen:
+            screen = {"error": capture.screen.error, "notice": capture.screen.notice, "low_disk": capture.screen.low_disk()}
+        return {**body, "levels": dict(capture.levels) if capture else None, "screen": screen}
 
     def finish(self, sid: str) -> str | None:
         capture = self.captures.pop(sid, None)

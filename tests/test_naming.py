@@ -153,11 +153,32 @@ from transcriber.providers.base import RateLimited  # noqa: E402
 
 @pytest.mark.parametrize("title", [
     "New Recording 99", "New Recording 56 — 2026-03-02", "Recording 33", "recording", "Untitled", "Voice Memo 7",
-    "University Road", "University Rd", "123 Main Street", "Park Ave", "University", "Shahrah-e-Faisal Road",
+    "University Road", "University Rd", "123 Main Street", "Park Ave", "University", "Harbour Front Road",
     "Fri 25 Sep", "Machine Learning — Mon 28 Sep", "Machine Learning, Wed 23 Sep",
+    "Live recording", "Live recording — 2026-11-05 16:01", "Maple Street 7", "Main Street 12 — 2026-11-04",
 ])
 def test_standard_names_and_addresses_are_recognised(title):
     assert is_standard_name(title)
+
+
+@pytest.mark.parametrize("title, original", [
+    ("Northfield 10 — 2026-11-05", "Northfield 10.m4a"),  # a city the phone named it after, numbered
+    ("Northfield 9", "Northfield 9.m4a"),
+    ("Clifton Block 5 3", "Clifton Block 5 3.m4a"),
+])
+def test_a_place_name_the_phone_gave_counts_while_it_is_still_the_file_name(title, original):
+    assert is_standard_name(title, original)
+
+
+@pytest.mark.parametrize("title, original", [
+    ("Northfield 10", None),  # no file name to compare with: could be a name you wrote
+    ("Northfield 10", "New Recording 4.m4a"),  # you typed it
+    ("Testing Riskiest Assumptions via MVP (part 10)", "Northfield 5.m4a"),  # renamed already
+    ("Northfield", "Northfield.m4a"),  # no phone number on the end
+    ("Week 5 marketing plan", "Week 5 marketing plan.docx"),
+])
+def test_a_name_you_chose_is_not_mistaken_for_a_phone_place_name(title, original):
+    assert not is_standard_name(title, original)
 
 
 @pytest.mark.parametrize("title", [
@@ -208,6 +229,17 @@ def test_the_review_can_cover_all_recordings_or_only_standard_names(tmp_path):
         law = store.get_or_create_subject("Law")
         assert ids(scope="all", subject_id=law) == ["c"]
         assert ids() == []  # the old default: joined classes only, and there are none
+
+
+def test_the_list_marks_recordings_that_still_have_a_default_name(tmp_path):
+    app = build(tmp_path, FakeTranscriber(), FakeLLM("groq:x", []), None)
+    store = app.state.store
+    done_recording(store, "a", "New Recording 5")
+    done_recording(store, "b", "Midterm review")
+    done_recording(store, "c", "University Rd", subject="Law")
+    with TestClient(app) as client:
+        flags = {r["id"]: r["standard_name"] for r in client.get("/api/recordings").json()}
+    assert flags == {"a": True, "b": False, "c": True}
 
 
 def test_a_list_of_joined_files_is_not_an_original_name_and_a_date_name_is_not_replaced_by_a_date_name(tmp_path):

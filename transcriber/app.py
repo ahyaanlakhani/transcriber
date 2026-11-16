@@ -6,6 +6,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import uuid
@@ -21,6 +22,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFi
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.background import BackgroundTask
 from pydantic import BaseModel, Field
 
 from .brain import Brain
@@ -47,6 +49,9 @@ from .config import LANGUAGE_NAMES, LANGUAGES, Config, load_config, register_lan
 from .export import to_md, to_txt
 from .live import LiveManager
 from .meeting import MeetingError, MeetingManager, WasapiDevices
+from .screen import SCREEN_FILE, screen_info
+from .screen import make_download as make_screen_download
+from .screen import remove as remove_screen
 from .merge import llm_judge
 from .providers.gemini_transcribe import GeminiTranscriber
 from .romanize import Romanizer
@@ -226,6 +231,8 @@ class LiveStart(BaseModel):
     subject: str = ""
     language: str | None = None
     privacy: str | None = None  # standard | private | local_only; None follows the default setting
+    screen: bool = False  # also record the whole screen, kept on this laptop
+    mic: bool = True  # meetings only: False records just the speakers (a class you only listen to)
 
 
 class SpeakerNames(BaseModel):
@@ -308,7 +315,8 @@ def create_app(config: Config | None = None, transcriber: Transcriber | None = N
                ask_engine: LLMClient | None | object = FROM_CONFIG,
                remote: RemoteServer | None | object = FROM_CONFIG,
                voice=FROM_CONFIG, practice_llm=FROM_CONFIG, meeting_devices=None, start_worker: bool = True,
-               privacy_allow_all: bool = False, meeting_clock=None, local_transcriber=FROM_CONFIG) -> FastAPI:
+               privacy_allow_all: bool = False, meeting_clock=None, local_transcriber=FROM_CONFIG,
+               meeting_screens=None) -> FastAPI:
     config = config or load_config()
     register_languages(config.extra_languages, config.second_language)
     if transcriber is None and config.groq_api_key:
@@ -379,7 +387,8 @@ def create_app(config: Config | None = None, transcriber: Transcriber | None = N
 
     live = LiveManager(store, transcriber, config.data_dir / "live", recordings_dir,
                        on_recording=lambda rid: worker.wake() if worker else None, start_thread=start_worker)
-    meeting = MeetingManager(live, meeting_devices or WasapiDevices(), **({"clock": meeting_clock} if meeting_clock else {}))
+    meeting = MeetingManager(live, meeting_devices or WasapiDevices(), screens=meeting_screens,
+                             **({"clock": meeting_clock} if meeting_clock else {}))
     practice = PracticeManager(store, transcriber, practice_llm, config.data_dir / "practice", recordings_dir)
     app = FastAPI(title="Meeting Transcriber", lifespan=lifespan)
     app.state.live = live
@@ -410,9 +419,11 @@ def create_app(config: Config | None = None, transcriber: Transcriber | None = N
         return [{"id": p.id, "title": p.title, "minutes": round((p.duration_sec or 0) / 60)} for p in parts if p]
 
     def with_duplicates(recs: list) -> list[dict]:
-        """Recordings as JSON, each with its twin (if any) and the class session it belongs to (if any)."""
+        """Recordings as JSON, each with its twin (if any), the class session it belongs to (if any), and whether it
+        still has a name nobody chose ("New Recording 33"), so the list can offer to name those."""
         twins, sessions = flags_for_all()
-        return [{**asdict(r), "duplicate": twins.get(r.id), "session": sessions.get(r.id)} for r in recs]
+        return [{**asdict(r), "duplicate": twins.get(r.id), "session": sessions.get(r.id),
+                 "standard_name": is_standard_name(r.title, r.original_filename)} for r in recs]
 
     def backfill_hashes() -> None:
         """Hash the audio of recordings made before exact copies could be spotted."""
@@ -962,6 +973,7 @@ def create_app(config: Config | None = None, transcriber: Transcriber | None = N
             "privacy": privacy_of(rid),
             "projects": store.projects_of("recording", rid),
             "has_audio": audio_path(rid) is not None,
+            "screen": screen_info(recordings_dir / rid),
             "translation": store.get_translation(rid),
             "topics": store.recording_topics(rid),
             "my_notes": store.get_my_notes(rid) or "",
@@ -1667,6 +1679,42 @@ def create_app(config: Config | None = None, transcriber: Transcriber | None = N
             raise HTTPException(404, "Audio is not ready yet")
         return FileResponse(path, media_type="audio/webm" if path.suffix == ".webm" else "audio/flac")
 
+    @app.get("/api/recordings/{rid}/screen")
+    def screen_file(rid: str):
+        """The screen video of a meeting recorded with its screen. It never leaves this computer."""
+        get_or_404(rid)
+        if screen_info(recordings_dir / rid) is None:
+            raise HTTPException(404, "This recording has no screen video")
+        return FileResponse(recordings_dir / rid / SCREEN_FILE, media_type="video/mp4")
+
+    @app.get("/api/recordings/{rid}/screen/download")
+    def screen_download(rid: str):
+        """The screen video and the sound together as one MP4. Made when asked and removed once sent, so it takes no space."""
+        rec = get_or_404(rid)
+        folder = recordings_dir / rid
+        if screen_info(folder) is None:
+            raise HTTPException(404, "This recording has no screen video")
+        sound = audio_path(rid)
+        if sound is None:
+            raise HTTPException(404, "This recording has no audio")
+        handle, name = tempfile.mkstemp(suffix=".mp4", prefix="download-", dir=folder)  # on the recording's own disk
+        os.close(handle)
+        temp = Path(name)
+        if not make_screen_download(folder, sound, temp):
+            temp.unlink(missing_ok=True)
+            raise HTTPException(500, "Couldn't put the sound and the screen video together")
+        title = re.sub(r'[\\/:*?"<>|]+', "-", rec.title).strip() or "recording"
+        return FileResponse(temp, media_type="video/mp4", filename=f"{title[:100]} - video with sound.mp4",
+                            background=BackgroundTask(lambda: temp.unlink(missing_ok=True)))
+
+    @app.delete("/api/recordings/{rid}/screen", status_code=204)
+    def delete_screen(rid: str):
+        """Delete only the video: the recording, transcript and notes stay."""
+        get_or_404(rid)
+        if not remove_screen(recordings_dir / rid):
+            raise HTTPException(404, "This recording has no screen video")
+        return Response(status_code=204)
+
     @app.get("/api/recordings/{rid}/export")
     def export(rid: str, fmt: Annotated[str, Query(alias="format", pattern="^(txt|md)$")] = "txt",
                lang: Annotated[str, Query(pattern="^(original|english)$")] = "original"):
@@ -1933,8 +1981,12 @@ def create_app(config: Config | None = None, transcriber: Transcriber | None = N
     def start_live(body: LiveStart):
         language = body.language or store.get_settings()["default_language"]
         check_language(language)
-        return {"id": live.create(title=body.title, subject_id=subject_id_for(body.subject), language=language,
-                                  privacy=body.privacy)}
+        sid = live.create(title=body.title, subject_id=subject_id_for(body.subject), language=language,
+                          privacy=body.privacy)
+        if body.screen:  # the screen is recorded on this laptop beside the browser's audio
+            clock = meeting_clock or time.monotonic
+            live.start_screen(sid, meeting.screens(live.live_dir / sid, clock), clock())
+        return {"id": sid}
 
     @app.put("/api/live/{sid}/chunks/{seq}")
     async def live_chunk(sid: str, seq: int, request: Request):
@@ -1972,7 +2024,7 @@ def create_app(config: Config | None = None, transcriber: Transcriber | None = N
         check_language(language)
         try:
             sid = meeting.start(title=body.title, subject_id=subject_id_for(body.subject), language=language,
-                                privacy=body.privacy)
+                                privacy=body.privacy, screen=body.screen, mic=body.mic)
         except MeetingError as exc:
             raise HTTPException(400, str(exc)) from exc
         return {"id": sid}

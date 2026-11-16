@@ -140,23 +140,27 @@
         </label>
         <input id="search" class="search" type="search" placeholder="Search notes and transcripts" aria-label="Search titles, transcripts and notes">
         <div class="stack-header">
-          <h2 id="list-heading">All recordings</h2>
+          <div class="stack-title">
+            <h2 id="list-heading">All recordings</h2>
+            <details id="list-menu" class="menu" hidden>
+              <summary class="button quiet" aria-label="More for this list" title="More for this list">
+                <svg class="icon"><use href="#i-more"/></svg></summary>
+              <div class="menu-panel">
+                <button type="button" id="rename-all"
+                  title="Write a topic name for every recording in this list, from its notes, and review them before anything changes">Rename all…</button>
+                <label id="separate-row" class="menu-check" hidden
+                  title="Off: each class recorded in parts is listed once, as one session. On: the original recordings, one by one. Nothing is deleted either way.">
+                  <input type="checkbox" id="show-separate"> Show classes as their separate parts</label>
+              </div>
+            </details>
+          </div>
           <p id="list-description" hidden></p>
-          <div id="list-tools" class="list-tools" hidden>
-            <div id="list-mode" class="segmented" role="group" aria-label="How to list classes recorded in parts">
-              <button type="button" data-mode="combined" aria-pressed="true"
-                title="Each class once, as one session. Its parts are tucked away.">Combined</button>
-              <button type="button" data-mode="separate" aria-pressed="false"
-                title="The original recordings, one by one.">Separate</button>
-            </div>
-            <button type="button" id="combine-all" class="quiet" hidden></button>
-          </div>
-          <div id="rename-tools" class="list-tools rename-tools" hidden>
-            <button type="button" id="rename-all" class="quiet"
-              title="Write a topic name for every recording in this list, from its notes, and review them before anything changes">Rename all</button>
-            <button type="button" id="rename-standard" class="quiet"
-              title="Only the recordings still called something like New Recording 33, or named after an address like University Rd. You review the names before anything changes">Rename standard names</button>
-          </div>
+          <p id="rename-hint" class="list-hint" hidden><span id="rename-hint-text"></span> <span class="nowrap">·
+            <button type="button" id="rename-standard" class="link"
+              title="Names from each recording's notes, for the ones still called something like New Recording 33 or an address like University Rd. You review them before anything changes">Name them</button></span></p>
+          <p id="combine-hint" class="list-hint" hidden><span id="combine-hint-text"></span> <span class="nowrap">·
+            <button type="button" id="combine-all" class="link"
+              title="Join the parts of each class into one session, with one set of notes that runs across the pauses. Your originals are kept">Combine them</button></span></p>
           <button type="button" id="empty-trash" class="quiet danger" hidden>Empty Recently Deleted</button>
         </div>
         <div id="selection-bar" class="selection-bar" hidden>
